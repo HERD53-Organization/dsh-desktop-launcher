@@ -1,238 +1,148 @@
-# DSH Desktop Launcher
+# DSH 桌面启动器
 
-A tray launcher and process supervisor for the **local `dsh web` server** of
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness).
+**中文** | [English](README.en.md)
 
-It exists to remove one thing: remembering and typing `dsh web`. The tray icon
-opens DeepSeek Harness in its own window, keeps the server alive, and shows what
-is actually going on when it is not.
+一个面向 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) **本地 `dsh web` 服务**的托盘启动器与进程监管程序。
 
-Scope is deliberately narrow. This is a self-use tool that manages one `dsh web`
-instance on this machine. It is **not** a replacement for, a wrapper around, or
-a competitor to the official Electron desktop application that ships in
-`deepseek-harness/apps/desktop`; the two are unaware of each other.
+它只为一件事而生：不必再记住并手敲 `dsh web`。托盘图标会在自己的窗口里打开 DeepSeek Harness、保持服务存活，并在出问题时告诉你究竟发生了什么。
+
+范围是刻意收窄的。这是一个管理本机单个 `dsh web` 实例的自用工具，**不是** `deepseek-harness/apps/desktop` 里官方 Electron 桌面端的替代、封装或竞品；两者互不感知。
 
 ---
 
-## What it does
+## 功能
 
 | | |
 |---|---|
-| **Tray** | Left-click opens or focuses the DSH window. Right-click opens the menu. The menu and status copy are Chinese. |
-| **Own window** | The DSH UI runs on a private session partition. Your browser is never touched: no tabs, no history, no shared cookies. |
-| **Opens on launch** | Double-clicking the launcher opens the window immediately. A launch from the login item only installs the tray and stays hidden, so signing in does not throw a window in your face. |
-| **Adopts or starts** | If something already serves the configured port it is reused as-is. Otherwise the launcher starts `dsh web` itself. |
-| **Restart on demand** | Only the tray menu's *Restart service* stops anything, and it asks first. |
-| **Diagnostics** | An on-demand window with server state, resolved paths, the captured output, and a copy-URL button. |
-| **Update check** | Manual only. Reads every published version and offers the highest one. |
+| **托盘** | 左键打开或聚焦 DSH 窗口，右键打开菜单。菜单与状态文案为中文。 |
+| **独立窗口** | DSH 界面运行在私有会话分区上。完全不碰你的浏览器：不开标签页、不进历史记录、不共用 cookie。 |
+| **启动即开窗** | 双击启动器会立即打开窗口；由开机自启拉起时只装托盘、保持隐藏，不会在登录时突然弹窗糊你一脸。 |
+| **复用或自启** | 若配置端口上已有服务在跑，直接复用；否则由启动器自己拉起 `dsh web`。 |
+| **按需重启** | 只有托盘菜单里的「重启服务」会停掉东西，而且会先征求确认。 |
+| **诊断** | 按需弹出的窗口，展示服务状态、解析出的路径、捕获的输出，以及复制 URL 按钮。 |
+| **检查更新** | 仅手动触发。读取全部已发布版本，取其中最高者。 |
 
-Launcher-owned surfaces (loading page, diagnostics, error pages, window
-background) use `#1f1d19` on `#f2efe9`, and the native caption is tinted to
-match through `titleBarStyle: 'hidden'` plus `titleBarOverlay`. The DSH UI
-themes itself and is deliberately left alone — the goal is only that the frame
-around it stops looking bolted on.
+启动器自有界面（加载页、诊断页、错误页、窗口背景）使用 `#1f1d19` 底色与 `#f2efe9` 文字，原生标题栏也通过 `titleBarStyle: 'hidden'` 加 `titleBarOverlay` 调成同色。DSH 界面自己管主题，刻意不做干预——目标只是让它外圈的边框不再显得是硬拼上去的。
 
-Two consequences of a hidden title bar, both easy to get wrong:
+隐藏标题栏带来两个容易做错的后果：
 
-- **The native drag area goes with it.** The window cannot be moved unless the
-  page provides one, so a transparent 32px strip is injected at the top with the
-  maximum z-index. It must be injected per document, because a navigation starts
-  without it.
-- **The overlay is click-through.** A drag region does not swallow mouse events
-  in Electron, so the strip does not make the UI beneath it unclickable.
+- **原生拖动区会一起消失。** 页面若不自己提供，窗口就完全拖不动，因此在顶部注入了一条 32px 高、`z-index` 最高、透明的拖动条。它必须**按文档重新注入**，因为每次导航后新文档里都没有它。
+- **覆盖层是点击穿透的。** 在 Electron 中拖动区不会吞掉鼠标事件，所以这条拖动条不会让下面的界面变得点不动。
 
-How an autostart launch is recognised: the login item is registered with an
-`--autostart` argument and only that flag is consulted. Two other approaches
-were tried and are documented in `launchedAtLogin()` — matching the Run value
-name fails because Electron writes it as `electron.app.Electron`, and matching
-the command line against `process.execPath` fails because the launcher ships in
-two folders and the Run entry points at whichever copy was toggled last.
-`scripts/verify-launch-modes.ps1` checks both behaviours end to end.
+开机自启如何识别：登录项注册时带上 `--autostart` 参数，启动时只认这个标志。另外两种做法都试过并失败，原因记录在 `launchedAtLogin()` 里——按 Run 键的值名匹配会失败，因为 Electron 把它写成 `electron.app.Electron`；按 `process.execPath` 比对命令行也会失败，因为启动器有两份副本，而 Run 记录总是指向最后一次切换开关时运行的那一份。`scripts/verify-launch-modes.ps1` 对两种行为都做了端到端验证。
 
-## Requirements
+## 环境要求
 
-The recipient needs exactly two things, both one-time:
+接收方只需要两样东西，都是一次性的：
 
-1. **Node.js** — the launcher runs `dsh` under the system Node, so Node must be
-   on `PATH` or at its standard install location.
-2. **`@deepseek-ai/dsh` installed globally** — `npm install -g @deepseek-ai/dsh`
+1. **Node.js** —— 启动器用系统 Node 运行 `dsh`，所以 Node 必须在 `PATH` 上，或位于其标准安装路径。
+2. **全局安装的 `@deepseek-ai/dsh`** —— `npm install -g @deepseek-ai/dsh`
 
-That is the whole list. Verified against a scratch `DSH_HOME`: a machine with
-only the global CLI boots the web profile from scratch, creating
-`profiles/web/{package.json,cordis.yml,cordis.patch.yml,pnpm-workspace.yaml}`
-and composing its config with no pre-existing `profiles/node_modules`.
+就这些。已用一个全新的 `DSH_HOME` 实测：只有全局 CLI 的机器可以从零启动 web profile，自动创建出 `profiles/web/{package.json,cordis.yml,cordis.patch.yml,pnpm-workspace.yaml}`，并在**不存在** `profiles/node_modules` 的情况下完成配置合成。
 
-**pnpm is not required**, and the ~451MB profile dependency tree is not required
-for the base profile, because in-box bundles resolve from the dsh installation
-itself: `resolveBundleDir` probes the installation anchor before the profile
-directory. pnpm and that tree matter only once you install extra plugins with
-`dsh plugin`.
+**不需要 pnpm**，基础 profile 也**不需要**那约 451MB 的 profile 依赖树——因为随包分发的 bundle 会从 dsh 安装目录本身解析：`resolveBundleDir` 会先在安装锚点、之后才在 profile 目录里查找。只有当你用 `dsh plugin` 安装额外插件时，pnpm 和那棵依赖树才变得必要。
 
-Credentials are never carried by the launcher. Each user brings their own
-DEEPSEEK API key; never copy your `~/.dsh/.credentials.yaml` to anyone.
+启动器从不携带凭据。每个用户填自己的 DEEPSEEK API Key；**永远不要**把自己的 `~/.dsh/.credentials.yaml` 拷贝给别人。
 
-## Run from source
+## 从源码运行
 
 ```sh
 npm install
 npm start
 ```
 
-The launcher lives in the tray. There is no main window until you open one.
+启动器常驻托盘。不主动打开就没有主窗口。
 
-## Sharing with someone else
+## 分享给别人
 
-Double-click **`打包.bat`**, or from a shell:
+双击 **`打包.bat`**，或在命令行里：
 
 ```powershell
-npm run release        # npm run dist then npm run share
+npm run release        # 依次执行 npm run dist 和 npm run share
 ```
 
-Either way you get two equivalent things — send whichever you prefer:
+两种方式都会产出内容等价的两样东西，发哪个都行：
 
 | | |
 |---|---|
-| `DSH-Launcher\` | the folder; right-click → compress it yourself if you like |
-| `DSH-Launcher.zip` | ~147MB built from the ~368MB folder |
+| `DSH-Launcher\` | 文件夹；你也可以右键自己压缩 |
+| `DSH-Launcher.zip` | 约 147MB，由那约 368MB 的文件夹压成 |
 
-Both have exactly three entries at their root: `win-unpacked\`, `setup.bat`,
-`安装说明.md`. Packaging refuses to ship if the archive gains an extra nesting
-level, is missing any of the three, or if `setup.bat` loses its CRLF line
-endings or gains a non-ASCII byte.
+两者的根层都恰好只有三项：`win-unpacked\`、`setup.bat`、`安装说明.md`。若压缩包多出一层嵌套、缺少其中任一项，或 `setup.bat` 丢了 CRLF 行尾、混入非 ASCII 字节，打包流程会**拒绝出包**。
 
-Two directories, two jobs — deliberately separate:
+两个目录，两种职责，刻意分开：
 
 ```
-build\           raw electron-builder output; wiped by npm run dist, never shipped
-DSH-Launcher\    the deliverable; rebuilt from build\ + share\ on every run
+build\            electron-builder 的原始产物；会被 npm run dist 清空，从不直接外发
+DSH-Launcher\     最终交付目录；每次运行都由 build\ + share\ 重建
 ```
 
-`setup.bat` cannot live in `build\`: `npm run dist` empties that directory, so
-anything placed there is deleted on the next build.
+`setup.bat` **不能**放进 `build\`：`npm run dist` 会清空该目录，放在里面的东西下一次构建就没了。
 
-The recipient extracts, runs `setup.bat` once, double-clicks
-`win-unpacked\DSH Launcher.exe`, and left-clicks the tray icon. `setup.bat`
-installs Node.js (via winget) and `@deepseek-ai/dsh` when missing, verifies
-`dsh --version`, and prints the exact exe path. Re-running it is safe.
+接收方解压后：跑一次 `setup.bat`，双击 `win-unpacked\DSH Launcher.exe`，再左键点托盘图标。`setup.bat` 会在缺失时通过 winget 安装 Node.js、安装 `@deepseek-ai/dsh`，验证 `dsh --version`，并打印出 exe 的确切路径。重复运行是安全的。
 
-Two things to warn them about, both in `安装说明.md`:
+有两件事要提醒对方，都写在 `安装说明.md` 里：
 
-- **SmartScreen.** The build is unsigned, so Windows shows "Windows protected
-  your PC"; they need *More info* → *Run anyway*.
-- **Mark-of-the-Web.** Files delivered over the internet carry a zone marker.
-  `Get-ChildItem -Recurse | Unblock-File` in the extracted folder clears it.
+- **SmartScreen。** 构建产物没有代码签名，Windows 会提示"Windows 已保护你的电脑"；需要点**「更多信息」→「仍要运行」**。
+- **网络来源标记（Mark-of-the-Web）。** 从网上传过去的文件带有区域标记，在解压目录里执行 `Get-ChildItem -Recurse | Unblock-File` 即可清除。
 
-Do **not** share `~/.dsh/.credentials.yaml` or `~/.dsh`: those carry the API key
-reference and the machine's session signing secret. The build output itself is
-clean — it contains no credentials and no machine-specific paths.
+**不要**分享 `~/.dsh/.credentials.yaml` 或整个 `~/.dsh`：它们携带 API Key 引用和本机的会话签名密钥。构建产物本身是干净的——不含任何凭据，也不含任何机器专属路径。
 
-For recipients who have never set up dsh, the
-[official desktop application](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.zh.md)
-is the better recommendation: it bundles Node, pnpm, and Python, ships a signed
-installer, and needs no `npm install -g` at all. This launcher is the lighter
-option for people who already run the dsh CLI and just want a tray icon.
+对于从未配置过 dsh 的接收方，更推荐[官方桌面端](https://github.com/deepseek-ai/deepseek-harness/blob/master/apps/desktop/README.zh.md)：它内置 Node、pnpm 和 Python，提供已签名的安装包，完全不需要 `npm install -g`。本启动器是更轻的选择，适合已经在用 dsh 命令行、只想要一个托盘图标的人。
 
-### Why setup.bat must keep CRLF line endings
+### 为什么 setup.bat 必须保持 CRLF 行尾
 
-`cmd.exe` mis-parses a `.bat` that uses bare LF: the `REM` header block gets
-executed as commands and the console fills with
-`'Launcher' is not recognized as an internal or external command`. Any tool or
-editor that rewrites `share/setup.bat` with LF reintroduces this. The packaging
-script repairs and verifies the line endings on every run, so the shipped copy
-is always correct.
+`cmd.exe` 会**错误解析**使用裸 LF 的 `.bat`：`REM` 注释块被当成命令执行，控制台里刷满
+`'Launcher' is not recognized as an internal or external command`。任何用 LF 重写 `share/setup.bat` 的工具或编辑器都会让它复发。打包脚本每次运行都会修复并校验行尾，所以外发的副本始终正确；`.gitattributes` 同时在仓库层面把外发脚本钉在 CRLF 上，因此全新克隆下来也是完好的。
 
-## Integrations
+## 集成与构建
 
 ```sh
-npm run dist        # unpacked directory build in build/ (no installer, unsigned)
+npm run dist        # 在 build/ 生成免安装目录产物（无安装包、未签名）
 ```
 
-Three environment traps apply on a mirror-only network:
+在只能走镜像的网络下，有三个环境陷阱：
 
-- **Electron's binary** comes from GitHub releases by default and stalls there.
-  `.npmrc` pins the npmmirror mirror so a plain `npm install` works.
-- **electron-builder's helper archives** also come from GitHub. Set
+- **Electron 二进制**默认从 GitHub releases 下载，在那里会**卡死**。`.npmrc` 固定了 npmmirror 镜像，所以普通的 `npm install` 即可完成。
+- **electron-builder 的辅助压缩包**同样来自 GitHub。构建时需设置
   `ELECTRON_BUILDER_BINARIES_MIRROR=https://npmmirror.com/mirrors/electron-builder-binaries/`
-  when building.
-- **The `winCodeSign` helper cannot be extracted without symlink privilege.**
-  That archive contains macOS `.dylib` symlinks, and extracting it fails with
-  "a required privilege is not held by the client" unless the account is an
-  administrator or Developer Mode is on. A `--dir` build needs no signing, so
-  `win.signAndEditExecutable` is `false`, which avoids the download entirely.
-  Turn it back on only when you actually sign.
+- **`winCodeSign` 辅助包在没有符号链接权限时无法解压。** 该压缩包内含 macOS 的 `.dylib` 符号链接，除非账户是管理员或开启了开发者模式，解压会以"客户端没有所需的特权"失败。`--dir` 构建不需要签名，因此 `win.signAndEditExecutable` 设为 `false`，从根本上避免了这次下载。只有真正要签名时才应把它打开。
 
-### The .exe icon is embedded as a separate build step
+### exe 图标是独立的构建步骤
 
-Disabling `signAndEditExecutable` avoids `winCodeSign`, but it also skips
-rcedit — so the packaged `DSH Launcher.exe` would keep **Electron's default
-icon** in the taskbar, Alt-Tab, and Explorer. `npm run dist` therefore runs
-`scripts/embed-exe-icon.ps1` afterwards, which rewrites the icon resources
-through the Win32 API (`BeginUpdateResource`/`UpdateResource`) instead of
-rcedit. It touches only `RT_ICON` and `RT_GROUP_ICON`, leaves version info and
-the manifest alone, and needs no administrator rights.
+关掉 `signAndEditExecutable` 避开了 `winCodeSign`，但它同时也跳过了 rcedit——于是打包出的 `DSH Launcher.exe` 会在任务栏、Alt-Tab 和资源管理器里保留 **Electron 的默认图标**。因此 `npm run dist` 之后会执行 `scripts/embed-exe-icon.ps1`，改用 Win32 API（`BeginUpdateResource`/`UpdateResource`）重写图标资源，而不是 rcedit。它只碰 `RT_ICON` 和 `RT_GROUP_ICON`，不动版本信息和清单，也不需要管理员权限。
 
-Two traps cost real time here, both worth knowing before editing that script:
+这里有**两个真金白银踩过的坑**，改那个脚本前值得先读：
 
-1. **`UpdateResource` overwrites by id and never prunes.** Writing ids 1..n on a
-   file that already carries icons leaves stale `RT_ICON` entries in place, so
-   from the second run onward a group declaring "id 2 is 64x64" reads whatever
-   the earlier pass left at id 2. On disk the group looks perfect. Windows
-   rejects the mismatched set and **falls back to the previously cached icon** —
-   which is why the .exe kept showing Electron's icon even though the resource
-   directory listed the right sizes.
-2. **Deleting and re-adding in one update handle does not work.** Deleting every
-   icon resource leaves the group structures pointing at removed members, and
-   the follow-up write did not land: the file ended up with groups whose members
-   read back as garbage.
+1. **`UpdateResource` 只按 id 覆盖，从不清理。** 在一个已带图标的文件上写 id 1..n，会留下陈旧的 `RT_ICON` 条目，于是从第二次运行起，一个声明"id 2 是 64x64"的组会读到上一轮留在 id 2 的东西。**磁盘上看这个组完美无缺。** Windows 拒绝这个不一致的图标集，并**回退到此前缓存的图标**——这就是为什么资源目录里尺寸都对，exe 却一直显示 Electron 图标。
+2. **在同一个更新句柄里"先删后加"行不通。** 删光所有图标资源会让组结构指向已被移除的成员，而后续写入没有落地：文件最终变成一些成员读回来是垃圾数据的组。
 
-The working strategy is to allocate a **fresh id range above the highest
-existing one** and overwrite only the two group ids, whose count is fixed.
-Nothing stale is reused and no deletion is needed for the bitmaps.
+可行的策略是分配一段**高于现有最大 id 的全新 id 段**，并且只覆盖那两个组 id（组数量是固定的）。这样不会复用任何陈旧资源，位图也不需要删除。
 
-Verification has to compare **payload bytes per member**, not just sizes in the
-group directory — the directory is exactly what looks correct in trap 1. The
-script now resolves every member id to its `RT_ICON` payload and compares the
-length against the declared length.
+校验必须**逐成员比对载荷字节**，而不是只看组目录里的尺寸——陷阱 1 里，目录恰恰是看起来最正常的那个东西。脚本现在会把每个成员 id 解析成它的 `RT_ICON` 载荷，再把长度与声明长度比对。
 
-`scripts/dump-exe-icons.ps1 -Executable <path> [-OutFile icon.png]` is the
-independent check: it re-reads every group and member from the finished
-executable and can export the largest one as a PNG to confirm the artwork.
+`scripts/dump-exe-icons.ps1 -Executable <路径> [-OutFile icon.png]` 是独立的复核手段：它从成品 exe 里重新读出每个组和每个成员，并能把最大的那个导出为 PNG 以确认图案。
 
-### Icons
+### 图标
 
-`dsh-ico.ico` at the project root is the single source of truth. The tray, the
-taskbar, the window, and the packaged `.exe` all render that one image.
+项目根目录的 `dsh-ico.ico` 是唯一真源。托盘、任务栏、窗口和打包后的 `.exe` 全部渲染这一张图。
 
-`npm run make-icons` reads it and writes:
+`npm run make-icons` 读取它并生成：
 
-- `assets/icon.ico` — seven sizes (16/24/32/48/64/128/256)
-- `assets/icon.png` — 256x256, the tray image on platforms that cannot read .ico
+- `assets/icon.ico` —— 七个尺寸（16/24/32/48/64/128/256）
+- `assets/icon.png` —— 256x256，用于无法读取 .ico 的平台
 
-The seven sizes are not cosmetic. Windows picks per context — 16 in the tray and
-title bar, 32 in the taskbar, 48/256 in Explorer — and an .ico carrying a single
-entry gets downscaled by the shell, which looks soft exactly where it is most
-visible.
+七个尺寸不是装饰。Windows 会按场景挑选——托盘和标题栏用 16，任务栏用 32，资源管理器用 48/256——而只带单个条目的 .ico 会被外壳缩放，恰好在最显眼的地方显得发虚。
 
-**Known limitation: the source is 96x96.** Its DIB header declares 96x96 (the
-doubled 192 height covers the AND mask), so 128 and 256 are interpolated and
-cannot be sharper than the source. Everything at or below 96 — which covers the
-tray and the taskbar, the two places it is actually seen — is a clean downscale.
-Replacing `dsh-ico.ico` with a >=256px version of the same artwork would make
-the large sizes sharp with no other change; `make-icons` prints a note listing
-which sizes were upscaled.
+**已知限制：源图只有 96x96。** 它的 DIB 头声明为 96x96（翻倍后的 192 高度用于覆盖 AND 掩码），所以 128 和 256 是插值放大出来的，不可能比源图更清晰。而 96 及以下的尺寸——也就是托盘和任务栏这两个真正被看到的地方——都是干净的降采样。把 `dsh-ico.ico` 换成同一图案的 >=256px 版本，就能让大尺寸变清晰，其它什么都不用改；`make-icons` 会打印一条提示，列出哪些尺寸是放大得到的。
 
-`npm run preview-icons` writes `preview-icons.png`: every size side by side at
-1:1, for judging legibility rather than trusting the resize.
+`npm run preview-icons` 会写出 `preview-icons.png`：把每个尺寸 1:1 并排放好，用于实际判断可辨识度，而不是盲信缩放结果。
 
-Note that `scripts/set-exe-icon.ps1` groups the sizes as Windows expects:
-16/32/48/256 go into `RT_GROUP_ICON` 2 (the "small icon" resource) and the rest
-into group 1. A single group would still render, but Explorer and Alt-Tab would
-pick the wrong entry.
+另外，`scripts/set-exe-icon.ps1` 按 Windows 期望的方式对尺寸分组：16/32/48/256 进入 `RT_GROUP_ICON` 2（即"小图标"资源），其余进入组 1。只用一个组其实也能显示，但资源管理器和 Alt-Tab 会挑错条目。
 
-## Self-test
+## 自检
 
-Clicking a tray icon cannot be automated, but the parts most likely to break
-can be checked headlessly:
+点击托盘图标无法自动化，但最容易坏掉的部分可以无头检查：
 
 ```sh
 # Windows
@@ -243,142 +153,104 @@ npm run self-test
 DSH_LAUNCHER_SELF_TEST=1 npm run self-test
 ```
 
-It asserts, in order: node and dsh resolution, server adoption **or** a
-launcher-started server, that the unauthenticated root request is fenced with
-401, that a browser-session cookie can be minted and lands in the window
-session, that the cookie authenticates over HTTP with 200, that the child
-process and its port are released, that stop is idempotent, that the tray icon
-loads, and that closing the window hides rather than destroys it. Exit code is
-non-zero if any step fails.
+它断言 25 项属性：Node 与 dsh 的解析、自检运行不会被误判为开机自启、服务复用**或**由启动器启动、未认证的根请求被 401 拦下、浏览器会话 cookie 能被签发并落入窗口会话、该 cookie 能通过 HTTP 认证返回 200、子进程与其端口被释放、stop 是幂等的、托盘图标能加载、关闭窗口是隐藏而非销毁、注入的拖动条存在且声明了拖动区、渲染资源存在，以及诊断页确实渲染出了内容。任何一步失败，退出码都非零。
 
-Point it at a scratch port with `DSH_LAUNCHER_SELF_TEST_PORT=3081` so a normal
-instance is left alone. This also works against the packaged build:
+用 `DSH_LAUNCHER_SELF_TEST_PORT=3081` 把它指向一个临时端口，就不会打扰正常实例。它同样适用于打包产物：
 
 ```sh
 "build/win-unpacked/DSH Launcher.exe"
 ```
 
+`scripts/verify-launch-modes.ps1` 覆盖自检覆盖不到的部分：它把真实 exe 启动两次，通过枚举可见的顶层窗口，确认手动启动会开窗、开机自启（`--autostart`）只装托盘。
+
 ---
 
-## How authentication works
+## 认证是怎么工作的
 
-This is the least obvious part of the design, and the reason the launcher can
-adopt a server it did not start.
+这是设计中**最不显眼**的一环，也是启动器能够复用一个非自己启动的服务的原因。
 
-A local `dsh web` server uses **two independent keys**:
+本地 `dsh web` 服务使用**两把互相独立的密钥**：
 
-| Key | Lives in | Lifetime | Role |
+| 密钥 | 存放位置 | 生命周期 | 作用 |
 |---|---|---|---|
-| Process launch token | Process memory only | Regenerated on every start | The `?token=` in the URL `dsh web` prints. Verified once, for the first `GET /`. |
-| Browser-session secret | `~/.dsh/.credentials.yaml`, record `client-connection/browser-session` | **Persistent** | Signs the `HttpOnly` `dsh-auth-<authority>` cookie that authenticates every later request. |
+| 进程启动令牌 | 仅进程内存 | 每次启动重新生成 | 即 `dsh web` 打印的 URL 里那个 `?token=`。只在首次 `GET /` 时校验一次。 |
+| 浏览器会话密钥 | `~/.dsh/.credentials.yaml` 中的 `client-connection/browser-session` 记录 | **持久** | 用于给 `HttpOnly` 的 `dsh-auth-<authority>` cookie 签名，之后每个请求都靠它认证。 |
 
-The first request carrying a valid launch token is answered with a redirect and
-a `Set-Cookie` signed by the **persistent** secret. From then on the cookie is
-the only credential. Because that secret outlives the process, a launcher that
-owns its own Electron session can mint an equivalent cookie directly and load
-the bare URL — no stdout scraping, no launch token, and no restart of a server
-it does not own.
+第一个携带有效启动令牌的请求会被回以一个重定向和一个由**持久**密钥签名的 `Set-Cookie`。此后 cookie 就是唯一的凭据。正因为该密钥的生命周期长于进程，拥有自己 Electron 会话的启动器可以直接签发一个等价的 cookie 并加载裸 URL——不必抓 stdout、不需要启动令牌，也不用重启一个自己并不拥有的服务。
 
-The cookie payload carries only the authority and issue/expiry timestamps, never
-the launch token, so a minted cookie survives a server restart.
+cookie 载荷里只带 authority 与签发/过期时间戳，**从不包含启动令牌**，所以签发出来的 cookie 能跨服务重启存活。
 
-Two consequences worth knowing:
+两点值得知道：
 
-- **The format is an internal detail.** It is mirrored from
-  `@deepseek-ai/dsh-client-connection`, not a public API. If DSH changes it, the
-  launcher fails loudly: the window shows an explicit authentication error and
-  the supervisor keeps the URL printed on stdout as a fallback.
-- **The secret is a credential.** Reading it is equivalent to holding a login
-  for `127.0.0.1:3080` on this machine. It is read in memory only, never logged,
-  and never sent over IPC. Captured output is filtered so a `?token=` value can
-  never reach the diagnostics window or a log file.
+- **这个格式是内部实现细节。** 它是从 `@deepseek-ai/dsh-client-connection` 镜像过来的，不是公开 API。若 DSH 改了格式，启动器会**明确报错**：窗口显示具体的认证错误，同时监管逻辑保留 stdout 打印的 URL 作为兜底。
+- **那个密钥就是凭据。** 读到它等同于持有本机 `127.0.0.1:3080` 的登录态。它只在内存中读取，从不写日志，也从不经 IPC 传递。捕获的输出经过过滤，`?token=` 的值绝不会出现在诊断窗口或任何日志文件里。
 
-## Hard constraints
+## 硬性约束
 
-These are not preferences; breaking any of them produces a broken launcher.
+这些不是偏好，破坏其中任何一条都会做出一个坏掉的启动器。
 
-1. **`dsh` must run under the system Node, never under Electron's bundled Node.**
-   `$DSH_HOME/profiles/node_modules` contains native modules (`node-pty`,
-   `sharp`, `koffi`) built for the system Node's ABI. Electron is only the shell,
-   tray, and window owner. The resolved Node path is cached in the launcher
-   config so a later PATH change cannot silently switch runtimes.
+1. **`dsh` 必须在系统 Node 下运行，绝不能用 Electron 自带的 Node。**
+   `$DSH_HOME/profiles/node_modules` 里是为系统 Node 的 ABI 编译的原生模块（`node-pty`、`sharp`、`koffi`）。Electron 只是外壳、托盘和窗口的持有者。解析出的 Node 路径会缓存在启动器配置里，以免之后 PATH 变化时静默切换运行时。
 
-2. **The launcher never writes to `~/.dsh` configuration.** DSH hot-reloads
-   `settings.yaml` and `profiles/web/cordis.patch.yml` through a watcher; a
-   second writer would fight the running server. Launcher settings live in
-   Electron's `userData`.
+2. **启动器从不写入 `~/.dsh` 的配置。** DSH 通过文件监视器热加载 `settings.yaml` 和 `profiles/web/cordis.patch.yml`；第二个写入者会和运行中的服务互相打架。启动器自己的设置存放在 Electron 的 `userData` 下。
 
-3. **The launcher never touches `profiles/desktop`** and never boots
-   `--profile desktop`. That profile belongs to the official desktop
-   application, and the CLI refuses it too.
+3. **启动器从不触碰 `profiles/desktop`**，也从不启动 `--profile desktop`。那个 profile 归官方桌面端所有，CLI 自身也拒绝它。
 
-## Update channel
+## 更新通道
 
-Version selection deliberately ignores npm dist-tags. On this product `latest`
-lags the release-candidate line — at the time of writing `latest` is
-`0.1.5-rc.3` while the newest published version is `0.1.7-rc.2` — so anything
-tag-driven either stalls or silently downgrades a user. The updater reads the
-full version list and picks the highest semver, prereleases included, skipping
-the four-field test builds that the desktop packaging pipeline emits.
+版本选择刻意**忽略 npm dist-tag**。在这个产品上，`latest` 落后于 rc 线——撰写时 `latest` 是 `0.1.5-rc.3`，而最新已发布版本是 `0.1.7-rc.2`——所以任何依赖 tag 的做法要么卡住、要么静默把用户降级。更新器读取完整版本列表，取 semver 最高者（含预发布），并跳过桌面端打包流水线产出的四段式测试构建。
 
-Installing is never automatic. The confirm dialog states the three costs: the
-service stops first (interrupting running agent tasks), a global install fails
-on Windows while dsh is running, and the profile dependency tree may be
-reinstalled on the next start.
+安装从不自动进行。确认对话框会讲清三项代价：会先停服务（打断运行中的 agent 任务）、Windows 上 dsh 运行期间全局安装会失败、以及下次启动可能重装 profile 依赖树。
 
-## Layout
+## 目录结构
 
 ```
 src/
-  main.js       tray, single-instance guard, window choreography, IPC, self-test
-  dsh.js        node/dsh resolution, port probe, spawn, stdout parsing, tree kill
-  auth.js       session-secret read, cookie minting, session injection
-  config.js     launcher settings under userData
-  updater.js    version discovery, semver selection, global install
-  preload.js    narrow renderer bridge
+  main.js       托盘、单实例锁、窗口编排、IPC、自检
+  dsh.js        node/dsh 解析、端口探活、spawn、stdout 解析、进程树终止
+  auth.js       会话密钥读取、cookie 签发、会话注入
+  config.js     启动器设置（存于 userData）
+  updater.js    版本发现、semver 选择、全局安装
+  preload.js    窄接口渲染进程桥
 renderer/
-  loading.html      shown while the server boots
-  diagnostics.html  status, paths, captured output, actions
+  loading.html      服务启动期间显示的等待页
+  diagnostics.html  状态、路径、捕获输出、操作按钮
 scripts/
-  make-icons.js           regenerates assets/ from dsh-ico.ico
-  preview-icons.js        side-by-side size sheet for judging legibility
-  set-exe-icon.ps1        writes icon resources into the built .exe
-  embed-exe-icon.ps1      build-hook wrapper; fails loudly if the target is absent
-  dump-exe-icons.ps1      independent read-back of a built .exe's icons
+  make-icons.js           由 dsh-ico.ico 重新生成 assets/
+  preview-icons.js        并排尺寸图，用于判断可辨识度
+  set-exe-icon.ps1        把图标资源写入构建出的 .exe
+  embed-exe-icon.ps1      构建钩子包装；目标缺失时明确报错
+  dump-exe-icons.ps1      独立回读成品 .exe 的图标
+  verify-launch-modes.ps1 校验手动启动与开机自启两种行为
 share/
-  setup.bat               one-time recipient setup; ASCII-only, must stay CRLF
-  打包分享包.ps1            assembles DSH-Launcher\ and verifies the zip
-  安装说明.md              Chinese install guide shipped to the recipient
-打包.bat                  double-click: rebuild + package in one step
+  setup.bat               接收方的一次性环境配置；纯 ASCII，必须保持 CRLF
+  打包分享包.ps1           组装 DSH-Launcher\ 并校验压缩包
+  安装说明.md              随包发给接收方的中文安装说明
+打包.bat                  双击即可：重建 + 打包一步完成
 assets/
-  icon.ico          7 sizes, generated — Windows tray, window, and .exe icon
-  icon.png          256x256, generated — tray on other platforms, mac/linux build
-dsh-ico.ico         tracked 96x96 source artwork, the single icon source
+  icon.ico          7 个尺寸，生成物 —— Windows 托盘、窗口与 .exe 图标
+  icon.png          256x256，生成物 —— 其它平台的托盘、mac/linux 构建用
+dsh-ico.ico         受版本管理的 96x96 源图，唯一图标来源
+README.md           本文档（中文，主）
+README.en.md        英文版
 ```
 
-Generated, never edited by hand, safe to delete and rebuild: `build\` (from
-`npm run dist`), `DSH-Launcher\` and `DSH-Launcher.zip` (from `npm run share`).
+以下目录为生成物，从不手工编辑，可安全删除重建：`build\`（由 `npm run dist` 生成）、`DSH-Launcher\` 与 `DSH-Launcher.zip`（由 `npm run share` 生成）。
 
-## Verified
+## 已验证
 
-Both supervisor paths are covered by the self-test, and the results below were
-observed on Windows against both the source tree and the packaged build:
+两条监管路径都由自检覆盖，以下结果均在 Windows 上、对源码树和打包产物分别观察到：
 
-- **Adopt** — an existing listener on 3080 is reused, authenticated, and left
-  running untouched (12/12 steps, including the packaged `DSH Launcher.exe`).
-- **Cold start** — the launcher starts `dsh web` on a free port, authenticates,
-  then stops it with the child process gone and the port released (15/15 steps).
+- **复用** —— 3080 上已有的监听被复用、完成认证，并被原样保留运行；对打包出的 `DSH Launcher.exe` 同样通过。
+- **冷启动** —— 启动器在一个空闲端口上拉起 `dsh web`、完成认证，然后将其停止，子进程消失、端口释放。
 
-Not automated, so verify by hand after changing window or tray code: the tray
-menu actions themselves, launch-at-login toggling, and the update flow.
+打包产物通过了全部 25 项自检断言；`scripts/verify-launch-modes.ps1` 报告手动启动时有 1 个可见窗口，开机自启时为 0 个。
 
-## Known gaps
+以下内容未做自动化，因此改动窗口或托盘代码后请手工验证：托盘菜单各项动作、开机自启开关、以及更新流程。
 
-- macOS and Linux are best-effort. Windows is the supported target; on Linux
-  the tray needs an AppIndicator host (GNOME requires an extension), and on
-  macOS launch-at-login uses login items rather than the Windows registry.
-- The official desktop application's tray-less window focus cannot be reused;
-  this launcher always opens its own window.
-- The launcher does not manage the profile dependency tree. After a dsh update
-  that changes profile requirements, the next start may be slow or may need
-  `dsh plugin` maintenance.
+## 已知不足
+
+- macOS 与 Linux 为尽力而为。受支持的平台是 Windows；Linux 上托盘需要 AppIndicator 宿主（GNOME 需装扩展），macOS 的开机自启用的是登录项而非 Windows 注册表。
+- 官方桌面端那种无托盘的窗口聚焦方式无法复用；本启动器始终打开自己的窗口。
+- 启动器不管理 profile 依赖树。若某次 dsh 更新改变了 profile 需求，下次启动可能较慢，或需要 `dsh plugin` 维护。
+- 登录项记录的是当时正在运行的那份副本。因此在从 `build\` 或 `DSH-Launcher\` 启动时开启自启，记录下的路径会被下一次构建清掉。长期使用自启请把启动器放到固定目录。
