@@ -1,0 +1,27 @@
+# Line-ending policy.
+#
+# Without this, `core.autocrlf=true` on Windows would hand out LF for these
+# files — and a .bat with LF line endings is not merely ugly: cmd.exe
+# mis-parses it, executing the REM header block as commands ("'Launcher' is not
+# recognized as an internal or external command"). That failure was already hit
+# once, so the shipped scripts are pinned to CRLF in the repository itself,
+# independent of anyone's local git configuration.
+#
+# `-text` disables all conversion, so the bytes in the repository are the bytes
+# that reach the user.
+
+*.bat text eol=crlf
+
+# Sources and docs normalize to LF, so a checkout on any platform is identical.
+*.js    text eol=lf
+*.json  text eol=lf
+*.ps1   text eol=lf
+*.html  text eol=lf
+*.md    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+.gitignore  text eol=lf
+
+# Binary assets: never touched, never diffed, never merged.
+*.ico binary
+*.png binary

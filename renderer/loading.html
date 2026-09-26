@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DeepSeek Harness</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1f1d19;
+    --fg: #f2efe9;
+    --muted: rgba(242, 239, 233, 0.62);
+    --faint: rgba(242, 239, 233, 0.38);
+    --track: rgba(242, 239, 233, 0.14);
+    --accent: #c9a061;
+  }
+  html, body { height: 100%; margin: 0; }
+  body {
+    display: grid;
+    place-items: center;
+    background: var(--bg);
+    color: var(--fg);
+    font: 14px/1.7 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+    -webkit-user-select: none;
+    user-select: none;
+  }
+  .card { text-align: center; padding: 0 24px; }
+  .spinner {
+    width: 32px; height: 32px; margin: 0 auto 18px;
+    border: 2.5px solid var(--track);
+    border-top-color: var(--accent);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+  @media (prefers-reduced-motion: reduce) { .spinner { animation-duration: 3s; } }
+  h1 { margin: 0 0 8px; font-size: 15px; font-weight: 600; letter-spacing: 0.01em; }
+  p { margin: 0; color: var(--muted); font-size: 13px; }
+  .hint { margin-top: 12px; font-size: 12px; color: var(--faint); max-width: 32em; }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="spinner"></div>
+    <h1>正在启动 DeepSeek Harness</h1>
+    <p>本地服务正在初始化。</p>
+    <p class="hint">安装后的首次启动可能稍慢：服务在响应之前需要先完成插件树的解析。</p>
+  </div>
+</body>
+</html>

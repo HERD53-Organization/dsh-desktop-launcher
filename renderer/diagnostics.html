@@ -1,0 +1,265 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>DSH 启动器 — 诊断</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --bg: #1f1d19;
+    --fg: #f2efe9;
+    --muted: rgba(242, 239, 233, 0.62);
+    --faint: rgba(242, 239, 233, 0.38);
+    --border: rgba(242, 239, 233, 0.12);
+    --accent: #c9a061;
+    --surface: rgba(242, 239, 233, 0.05);
+    --surface-hover: rgba(242, 239, 233, 0.1);
+    --ok: #86c08a;
+    --warn: #d8b06a;
+    --bad: #e0918f;
+  }
+  * { box-sizing: border-box; }
+  html, body { height: 100%; margin: 0; }
+  body {
+    background: var(--bg);
+    color: var(--fg);
+    font: 13px/1.7 system-ui, "Segoe UI", "Microsoft YaHei", sans-serif;
+    display: flex;
+    flex-direction: column;
+  }
+  header { padding: 16px 18px 12px; border-bottom: 1px solid var(--border); }
+  .row { display: flex; align-items: center; gap: 10px; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; background: var(--faint); flex: none; }
+  .dot.ready { background: var(--ok); }
+  .dot.starting, .dot.stopping { background: var(--warn); }
+  .dot.failed { background: var(--bad); }
+  h1 { margin: 0; font-size: 14px; font-weight: 600; }
+  .sub { color: var(--muted); margin-top: 3px; font-size: 12px; }
+  .actions {
+    display: flex; gap: 8px; padding: 12px 18px;
+    border-bottom: 1px solid var(--border); flex-wrap: wrap;
+  }
+  button {
+    background: var(--surface); color: var(--fg); border: 1px solid var(--border);
+    border-radius: 6px; padding: 6px 13px; font: inherit; cursor: pointer;
+    transition: background 0.12s ease;
+  }
+  button:hover { background: var(--surface-hover); }
+  button.primary { background: rgba(201, 160, 97, 0.18); border-color: rgba(201, 160, 97, 0.45); }
+  button.primary:hover { background: rgba(201, 160, 97, 0.28); }
+  main { flex: 1; overflow: auto; padding: 6px 18px 18px; }
+  table { width: 100%; border-collapse: collapse; }
+  td { padding: 5px 0; vertical-align: top; border-bottom: 1px solid rgba(242, 239, 233, 0.07); }
+  td.k { color: var(--muted); width: 34%; white-space: nowrap; }
+  td.v {
+    font-family: ui-monospace, Consolas, "Cascadia Mono", monospace;
+    font-size: 12px; word-break: break-all;
+  }
+  .path { color: var(--accent); cursor: pointer; text-decoration: underline dotted; }
+  .path:hover { color: #dcb87e; }
+  h2 {
+    font-size: 11px; text-transform: uppercase; letter-spacing: 0.07em;
+    color: var(--faint); margin: 22px 0 8px; font-weight: 600;
+  }
+  pre {
+    background: rgba(0, 0, 0, 0.22); border: 1px solid var(--border); border-radius: 6px;
+    padding: 11px; margin: 0; max-height: 280px; overflow: auto;
+    font: 11.5px/1.6 ui-monospace, Consolas, "Cascadia Mono", monospace;
+    white-space: pre-wrap; word-break: break-all; color: var(--muted);
+  }
+  .banner {
+    margin: 0 0 12px; padding: 10px 12px; border-radius: 6px;
+    background: rgba(224, 145, 143, 0.12); border: 1px solid rgba(224, 145, 143, 0.32);
+    color: #f0b7b5;
+  }
+  .toast {
+    position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%);
+    background: rgba(242, 239, 233, 0.12); border: 1px solid var(--border);
+    border-radius: 6px; padding: 7px 15px; opacity: 0;
+    transition: opacity 0.18s ease; pointer-events: none;
+  }
+  .toast.show { opacity: 1; }
+</style>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <span class="dot" id="dot"></span>
+      <h1 id="status">正在读取…</h1>
+    </div>
+    <div class="sub" id="sub"></div>
+  </header>
+
+  <div class="actions">
+    <button class="primary" id="open">打开 DSH</button>
+    <button id="restart">重启服务</button>
+    <button id="check">检查 dsh 更新</button>
+    <button id="copy">复制地址</button>
+  </div>
+
+  <main>
+    <div id="banner"></div>
+    <table>
+      <tbody id="facts"></tbody>
+    </table>
+    <h2>捕获的输出（已隐藏 token）</h2>
+    <pre id="logs"></pre>
+  </main>
+
+  <div class="toast" id="toast"></div>
+
+<script>
+'use strict';
+const el = (id) => document.getElementById(id);
+let snapshot = null;
+
+function toast(message) {
+  const node = el('toast');
+  node.textContent = message;
+  node.classList.add('show');
+  clearTimeout(toast.timer);
+  toast.timer = setTimeout(() => node.classList.remove('show'), 1600);
+}
+
+function fact(key, value, openable) {
+  const tr = document.createElement('tr');
+  const k = document.createElement('td');
+  k.className = 'k';
+  k.textContent = key;
+  const v = document.createElement('td');
+  v.className = 'v';
+  if (value === null || value === undefined || value === '') {
+    v.textContent = '—';
+  } else if (openable === true) {
+    const link = document.createElement('span');
+    link.className = 'path';
+    link.textContent = String(value);
+    link.title = '点击打开目录';
+    link.addEventListener('click', async () => {
+      const result = await window.launcher.openPath(String(value));
+      if (result.ok !== true) toast(result.reason ?? '无法打开目录');
+    });
+    v.append(link);
+  } else {
+    v.textContent = String(value);
+  }
+  tr.append(k, v);
+  return tr;
+}
+
+const UPDATE_PHASE = {
+  idle: '未检查',
+  checking: '正在检查…',
+  available: '有可用更新',
+  current: '已是最新',
+  installing: '正在安装…',
+  failed: '检查失败',
+};
+
+const STATE_TEXT = {
+  ready: '运行中',
+  starting: '启动中',
+  stopping: '停止中',
+  failed: '启动失败',
+  stopped: '已停止',
+};
+
+function render(next) {
+  snapshot = next;
+  el('status').textContent = next.statusLabel ?? STATE_TEXT[next.state] ?? next.state;
+  el('dot').className = 'dot ' + String(next.state);
+  el('sub').textContent = next.adopted === true
+    ? '当前复用了已在运行的服务（不是启动器启动的）。'
+    : '由启动器管理。';
+
+  const banner = el('banner');
+  banner.innerHTML = '';
+  if (next.error) {
+    const div = document.createElement('div');
+    div.className = 'banner';
+    div.textContent = next.error;
+    banner.append(div);
+  }
+
+  const facts = el('facts');
+  facts.innerHTML = '';
+  facts.append(
+    fact('端口', next.port),
+    fact('地址', next.url),
+    fact('服务进程 PID', next.pid),
+    fact('dsh 版本', next.update?.current),
+    fact('更新通道', '所有已发布版本中的最高版本'),
+    fact('最新已发布', next.update?.latest),
+    fact('更新状态', UPDATE_PHASE[next.update?.phase] ?? next.update?.phase),
+    fact('Node 可执行文件', next.nodePath),
+    fact('dsh 入口脚本', next.dshEntryPath),
+    fact('启动器配置', next.configPath, false),
+    fact('凭据文件', next.credentialsPath, false),
+    fact('DSH 主目录', next.dshHome, true),
+    fact('profile 依赖目录', next.profileNodeModules, false),
+  );
+
+  const logs = el('logs');
+  logs.textContent = next.logs && next.logs !== '' ? next.logs : '（暂无输出）';
+  logs.scrollTop = logs.scrollHeight;
+}
+
+async function refresh() {
+  render(await window.launcher.snapshot());
+}
+
+/**
+ * Surface a failure instead of leaving an empty window. The page depends on the
+ * preload bridge and on the main process answering IPC; when either is missing
+ * the result used to be a blank dark window with no clue why, which is
+ * indistinguishable from a broken build.
+ */
+function showFatal(message) {
+  const banner = el('banner');
+  if (banner !== null) {
+    banner.innerHTML = '';
+    const div = document.createElement('div');
+    div.className = 'banner';
+    div.textContent = String(message);
+    banner.append(div);
+  }
+  const status = el('status');
+  if (status !== null) status.textContent = '界面无法初始化';
+  const facts = el('facts');
+  if (facts !== null && facts.children.length === 0) {
+    facts.append(fact('诊断界面自身出错', String(message)));
+  }
+}
+
+window.addEventListener('error', (event) => {
+  showFatal(`页面脚本错误：${event.message ?? '未知错误'}`);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  const reason = event.reason;
+  showFatal(`未处理的异步错误：${reason instanceof Error ? reason.message : String(reason)}`);
+});
+
+el('open').addEventListener('click', async () => { render(await window.launcher.openDsh()); });
+el('restart').addEventListener('click', async () => { render(await window.launcher.restart()); });
+el('check').addEventListener('click', async () => {
+  toast('正在检查更新…');
+  await window.launcher.checkUpdates();
+});
+el('copy').addEventListener('click', async () => {
+  if (snapshot === null) return;
+  await window.launcher.copyText(snapshot.url);
+  toast('地址已复制');
+});
+
+if (typeof window.launcher !== 'object' || window.launcher === null) {
+  showFatal('预加载脚本没有注入 launcher 桥接，诊断页无法读取任何状态。这通常意味着打包时遗漏了 src/preload.js。');
+} else {
+  window.launcher.onState((next) => render(next));
+  window.launcher.onUpdate((update) => {
+    if (snapshot !== null) render({ ...snapshot, update });
+  });
+  void refresh().catch((error) => showFatal(`读取状态失败：${error.message}`));
+}
+</script>
+</body>
+</html>

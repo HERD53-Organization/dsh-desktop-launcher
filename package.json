@@ -1,0 +1,70 @@
+{
+  "name": "dsh-desktop-launcher",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Tray launcher and supervisor for the local DeepSeek Harness web profile",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "self-test": "electron .",
+    "make-icons": "electron scripts/make-icons.js",
+    "preview-icons": "electron scripts/preview-icons.js",
+    "embed-icon": "powershell -NoProfile -ExecutionPolicy Bypass -File scripts/embed-exe-icon.ps1",
+    "build": "electron-builder --win --x64 --dir",
+    "dist": "npm run build && npm run embed-icon",
+    "share": "powershell -NoProfile -ExecutionPolicy Bypass -File share/打包分享包.ps1",
+    "release": "npm run dist && npm run share"
+  },
+  "dependencies": {
+    "semver": "^7.6.3",
+    "yaml": "^2.6.1"
+  },
+  "devDependencies": {
+    "electron": "^44.4.5",
+    "electron-builder": "^25.1.8"
+  },
+  "build": {
+    "appId": "com.local.dsh-launcher",
+    "productName": "DSH Launcher",
+    "directories": {
+      "output": "build"
+    },
+    "files": [
+      "src/**/*",
+      "renderer/**/*",
+      "assets/**/*"
+    ],
+    "win": {
+      "icon": "assets/icon.ico",
+      "signAndEditExecutable": false,
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "mac": {
+      "icon": "assets/icon.png",
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "arm64",
+            "x64"
+          ]
+        }
+      ],
+      "category": "public.app-category.developer-tools"
+    },
+    "linux": {
+      "icon": "assets/icon.png",
+      "target": [
+        "dir"
+      ],
+      "category": "Development"
+    }
+  }
+}

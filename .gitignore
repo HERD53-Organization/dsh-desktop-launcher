@@ -1,0 +1,26 @@
+# ─── Generated build output ──────────────────────────────────────────────────
+# Raw electron-builder output. Wiped and rebuilt by `npm run dist`, never
+# shipped directly: setup.bat must not live here, because that command empties
+# the directory.
+build/
+
+# ─── Generated deliverable ───────────────────────────────────────────────────
+# Assembled from build/ + share/ by `npm run share`. This is what gets handed to
+# someone else, so these are ~368MB of binaries that must never enter history.
+DSH-Launcher/
+DSH-Launcher.zip
+
+# ─── Dependencies ────────────────────────────────────────────────────────────
+node_modules/
+
+# ─── Legacy output directory ─────────────────────────────────────────────────
+# Kept so an older checkout does not start tracking 368MB after the build/ split.
+out/
+
+# ─── Local experiments and scratch output ────────────────────────────────────
+# preview-icons.png is written by `npm run preview-icons`.
+# .dsh-launcher-* covers anything the launcher or a probe drops in the tree.
+preview-icons.png
+.dsh-launcher-*
+dist/
+*.log
